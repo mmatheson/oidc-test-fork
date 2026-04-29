@@ -1,0 +1,38 @@
+name: oidc-fork-probe
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Inspect OIDC env
+        run: |
+          echo "event_name: ${GITHUB_EVENT_NAME}"
+          echo "head repo:  ${{ github.event.pull_request.head.repo.full_name }}"
+          echo "base repo:  ${{ github.repository }}"
+          echo "ACTIONS_ID_TOKEN_REQUEST_URL set:   ${ACTIONS_ID_TOKEN_REQUEST_URL:+YES}${ACTIONS_ID_TOKEN_REQUEST_URL:-NO}"
+          echo "ACTIONS_ID_TOKEN_REQUEST_TOKEN set: ${ACTIONS_ID_TOKEN_REQUEST_TOKEN:+YES}${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-NO}"
+
+      - name: Try to fetch and decode the OIDC token
+        if: ${{ env.ACTIONS_ID_TOKEN_REQUEST_URL != '' }}
+        run: |
+          set -e
+          RESP=$(curl -sS -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=oidc-fork-probe")
+          echo "raw response: $RESP"
+          TOKEN=$(echo "$RESP" | jq -r .value)
+          if [ "$TOKEN" = "null" ] || [ -z "$TOKEN" ]; then
+            echo "no token in response"; exit 1
+          fi
+          # Decode the JWT payload (middle segment, base64url)
+          PAYLOAD=$(echo "$TOKEN" | cut -d. -f2)
+          # Pad and decode
+          PADDED=$(printf '%s' "$PAYLOAD" | awk '{ l=length($0)%4; if(l==2)$0=$0"=="; else if(l==3)$0=$0"="; print }')
+          echo "$PADDED" | tr '_-' '/+' | base64 -d 2>/dev/null | jq .
