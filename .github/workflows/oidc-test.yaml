@@ -21,7 +21,6 @@ jobs:
           echo "ACTIONS_ID_TOKEN_REQUEST_TOKEN set: ${ACTIONS_ID_TOKEN_REQUEST_TOKEN:+YES}${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-NO}"
 
       - name: Try to fetch and decode the OIDC token
-        if: ${{ env.ACTIONS_ID_TOKEN_REQUEST_URL != '' }}
         run: |
           set -e
           RESP=$(curl -sS -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
